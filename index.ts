@@ -1,69 +1,72 @@
-import simpleGit, { SimpleGit } from "simple-git";
-import fs from 'fs'
-import path from 'path'
-// Comentario
+import simpleGit, { SimpleGit } from 'simple-git';
+import fs from 'fs';
+import path from 'path';
 
-const git: SimpleGit = simpleGit()
+// Instanciando o simples git
+const git: SimpleGit = simpleGit();
 
-const BASE_BRANCH = 'main'
+// Função para obter a branch base (geralmente 'main' ou 'master')
+const BASE_BRANCH = 'main'; // TODO: parametrizar
 
+// Função para obter a branch atual
 async function getCurrentBranch(): Promise<string> {
-  const branch = await git.revparse(['--abbrev-ref', 'HEAD'])
-  return branch.trim()
+  const branch = await git.revparse(['--abbrev-ref', 'HEAD']);
+  return branch.trim();
 }
 
-async function saveModifiedFiles(): Promise<void> {
-  const currentBranch = await getCurrentBranch()
-  const mergeBase = await git.raw(['merge-base', BASE_BRANCH, currentBranch])
-  const diff = await git.diff([mergeBase.trim(), '--name-status'])
+// Função para criar uma nova branch a partir da branch base
+async function createNewBranch(): Promise<void> {
+  console.log(`Criando uma nova branch a partir de ${BASE_BRANCH}...`);
 
-  fs.writeFileSync(path.join(__dirname, 'changes.diff'), diff)
+  // Criar e atualizar a branch base
+  await git.checkout(BASE_BRANCH);
+  await git.pull('origin', BASE_BRANCH);
 
-  const status = await git.status()
-  const modifiedFiles = status.modified
+  const newBranchName = `feature-branch-${Date.now()}`; // Nome da nova branch com timestamp
+  await git.checkoutLocalBranch(newBranchName);
 
-  fs.writeFileSync(path.join(__dirname, 'modifiedFiles.txt'), modifiedFiles.join('\n'))
-
-  console.log('Arquivos modificados com sucesso!')
+  console.log(`Nova branch ${newBranchName} criada com sucesso!`);
 }
 
-async function saveCreatedDeletedFiles(): Promise<void> {
-  const currentBranch = await getCurrentBranch()
-  const mergeBase = await git.raw(['merge-base', BASE_BRANCH, currentBranch])
+// Função para aplicar os commits da branch de trabalho na nova branch
+async function applyCommitsToNewBranch(): Promise<void> {
+  const currentBranch = await getCurrentBranch();
 
-  const createdDeletedFiles = await git.diff([mergeBase.trim(), '--name-status'])
-  const createdFiles: string[] = []
-  const deletedFiles: string[] = []
+  // Obter os commits da branch atual
+  const commits = await git.log([`${BASE_BRANCH}..${currentBranch}`]);
 
-  createdDeletedFiles.split('\n').forEach(line => {
-    const [status, file] = line.split('\t')
+  console.log(`Aplicando ${commits.total} commits da branch ${currentBranch} para a nova branch...`);
 
-    if (status === 'A') {
-      createdFiles.push(file)
+  // Aplicar cada commit com cherry-pick
+  for (const commit of commits.all) {
+    try {
+      console.log(`Aplicando commit ${commit.hash}...`);
+      await git.raw(['cherry-pick', commit.hash]); // Usando git.raw para fazer o cherry-pick
+      console.log(`Commit ${commit.hash} aplicado com sucesso!`);
+    } catch (error) {
+      console.error(`Erro ao aplicar o commit ${commit.hash}: ${error.message}`);
+      break; // Se houver erro ao aplicar um commit, interrompe o processo
     }
-
-    if (status === 'D') {
-      deletedFiles.push(file)
-    }
-  })
-
-  fs.writeFileSync(path.join(__dirname, 'createdFiles.txt'), createdFiles.join('\n'))
-  fs.writeFileSync(path.join(__dirname, 'deletedFiles.txt'), deletedFiles.join('\n'))
+  }
 }
 
-async function stashChanges(): Promise<void> {
-  await git.stash()
-  console.log('Mudanças armazenadas no stash com sucesso!')
+// Função para fazer commit das mudanças na nova branch
+async function commitChanges(): Promise<void> {
+  await git.add('.');  // Adiciona todas as mudanças
+  await git.commit('Comitando as mudanças preparadas para o PR');
+  console.log('Mudanças commitadas com sucesso!');
 }
 
-async function main(): Promise<void>  {
-  await saveModifiedFiles()
-  await saveCreatedDeletedFiles()
-  await stashChanges()
+// Função principal para rodar o fluxo
+async function main(): Promise<void> {
+  await createNewBranch();            // Criar a nova branch a partir da base
+  await applyCommitsToNewBranch();    // Aplicar os commits da branch original na nova branch
+  await commitChanges();              // Comitar as mudanças na nova branch
 
-  console.log('Preparação para merge concluida')
+  console.log('Nova branch preparada para o PR com sucesso!');
 }
 
+// Chamada da função principal
 main().catch(err => {
-  console.error('Erro no processo', err)
-})
+  console.error('Erro no processo:', err);
+});
