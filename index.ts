@@ -37,7 +37,7 @@ async function applyCommitsToNewBranch(): Promise<void> {
       await git.raw(['cherry-pick', commit.hash]); // Usando git.raw para fazer o cherry-pick
       console.log(`Commit ${commit.hash} aplicado com sucesso!`);
     } catch (error) {
-      console.error(`Erro ao aplicar o commit ${commit.hash}: ${error.message}`);
+      console.error(`Erro ao aplicar o commit ${commit.hash}: ${JSON.stringify(error)}`);
       break; // Se houver erro ao aplicar um commit, interrompe o processo
     }
   }
