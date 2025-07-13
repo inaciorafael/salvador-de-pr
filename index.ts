@@ -1,24 +1,17 @@
 import simpleGit, { SimpleGit } from 'simple-git';
-import fs from 'fs';
-import path from 'path';
 
-// Instanciando o simples git
 const git: SimpleGit = simpleGit();
 
-// Função para obter a branch base (geralmente 'main' ou 'master')
 const BASE_BRANCH = 'main'; // TODO: parametrizar
 
-// Função para obter a branch atual
 async function getCurrentBranch(): Promise<string> {
   const branch = await git.revparse(['--abbrev-ref', 'HEAD']);
   return branch.trim();
 }
 
-// Função para criar uma nova branch a partir da branch base
 async function createNewBranch(): Promise<void> {
   console.log(`Criando uma nova branch a partir de ${BASE_BRANCH}...`);
 
-  // Criar e atualizar a branch base
   await git.checkout(BASE_BRANCH);
   await git.pull('origin', BASE_BRANCH);
 
@@ -44,7 +37,7 @@ async function applyCommitsToNewBranch(): Promise<void> {
       await git.raw(['cherry-pick', commit.hash]); // Usando git.raw para fazer o cherry-pick
       console.log(`Commit ${commit.hash} aplicado com sucesso!`);
     } catch (error) {
-      console.error(`Erro ao aplicar o commit ${commit.hash}: ${error.message}`);
+      console.error(`Erro ao aplicar o commit ${commit.hash}: ${JSON.stringify(error)}`);
       break; // Se houver erro ao aplicar um commit, interrompe o processo
     }
   }
